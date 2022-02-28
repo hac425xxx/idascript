@@ -238,7 +238,8 @@ class TookitManger:
 
     def new_window(self):
         TookitWidget = Window()
-        TookitWidget.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)  # 窗口置顶
+        # TookitWidget.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint)  # 窗口置顶
+        TookitWidget.setWindowFlags(QtCore.Qt.WindowStaysOnTopHint | QtCore.Qt.WindowCloseButtonHint)
         ui = Ui_TookitWidget()
         ui.setupUi(TookitWidget)
         TookitWidget.show()
