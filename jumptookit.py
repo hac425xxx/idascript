@@ -7,16 +7,31 @@
 # WARNING! All changes made in this file will be lost!
 
 
+import imp
 from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtWidgets import QApplication, QWidget
 from PyQt5.QtCore import Qt
 import idc
 import idaapi
+import os
+import sys
+
+
+if sys.version_info < (3, 0):
+    reload(sys)
+    sys.setdefaultencoding("utf-8")
+
+
+last_debugger_base = 0
+
 
 class Ui_TookitWidget(object):
 
     def __init__(self):
-        self.debug_base_addr = 0
+
+        global last_debugger_base
+
+        self.debug_base_addr = last_debugger_base
         self.debug_addr_disabled = False
         self.mode = 1 # 0 ida offset to debug addr , 1 debug addr to ida offset
 
@@ -28,10 +43,12 @@ class Ui_TookitWidget(object):
         TookitWidget.set_tookit_widgetui(self)
     
         TookitWidget.setObjectName("TookitWidget")
+
+        # 整个框的大小
         TookitWidget.resize(480, 140)
         TookitWidget.setAutoFillBackground(True)
         
-        
+        # 调试器基地址输入框
         self.dbg_addr = QtWidgets.QLineEdit(TookitWidget)
         self.dbg_addr.setGeometry(QtCore.QRect(160, 20, 200, 31))
         self.dbg_addr.setObjectName("dbg_addr")
@@ -88,12 +105,18 @@ class Ui_TookitWidget(object):
         
         self.jump_offset.editingFinished.connect(self.get_result)
 
+        self.dbg_addr.setText("0x{:x}".format(self.debug_base_addr))
+
         self.retranslateUi(TookitWidget)
         QtCore.QMetaObject.connectSlotsByName(TookitWidget)
 
+    def get_module_name(self):
+        fpath = idaapi.get_input_file_path()
+        return os.path.basename(fpath)
+
     def retranslateUi(self, TookitWidget):
         _translate = QtCore.QCoreApplication.translate
-        TookitWidget.setWindowTitle(_translate("TookitWidget", "跳转tookit"))
+        TookitWidget.setWindowTitle(_translate("TookitWidget", self.get_module_name()))
         self.dbg_base_label.setText(_translate("TookitWidget", "调试基地址"))
         self.debug_button.setText(_translate("TookitWidget", "设置"))
         self.jump_button.setText(_translate("TookitWidget", "跳转"))
@@ -106,14 +129,16 @@ class Ui_TookitWidget(object):
                 addr = self.imagebase + offset
                 idc.jumpto(addr)
             except Exception as e:
-                print(e)
+                print("input:{}, error:{}".format(self.jump_offset.text(), str(e)))
                 pass
         else:
             try:
                 offset = idc.here() - self.imagebase
-                text = hex(self.debug_base_addr + offset)
-                text = text.replace('L', '')
+                # text = hex(self.debug_base_addr + offset)
+                # text = text.replace('L', '')
+                text = "0x{:x}".format(self.debug_base_addr + offset)
                 self.jump_offset.setText(text)
+
                 clipboard = QApplication.clipboard()
                 clipboard.setText(text)
             except Exception as e:
@@ -122,6 +147,9 @@ class Ui_TookitWidget(object):
         
 
     def set_debug_base(self):
+
+        global last_debugger_base
+
         if self.debug_addr_disabled:
             self.dbg_addr.setEnabled(True)
             self.debug_addr_disabled = False
@@ -129,11 +157,13 @@ class Ui_TookitWidget(object):
         
         try:
             self.debug_base_addr = int(self.dbg_addr.text(), 16)
+            last_debugger_base = self.debug_base_addr
+
             idaapi.msg(hex(self.debug_base_addr) + "\n")
             self.dbg_addr.setEnabled(False)
             self.debug_addr_disabled = True
         except Exception as e:
-            print("set failed: " + e)
+            print("set failed: {}".format(str(e)))
 
     # enter 按下时触发
     def enter_pressed(self): 
@@ -151,11 +181,11 @@ class Window(QWidget):
     def change_ui(self):
         _translate = QtCore.QCoreApplication.translate
         if self.tookit_widgetui.mode==1:
-            self.setWindowTitle(_translate("TookitWidget", "IDA->DBG"))
+            # self.setWindowTitle(_translate("TookitWidget", "IDA->DBG"))
             self.tookit_widgetui.jump_button.setText(_translate("TookitWidget", "计算"))
             self.tookit_widgetui.mode = 0
         else:
-            self.setWindowTitle(_translate("TookitWidget", "DBG->IDA"))
+            # self.setWindowTitle(_translate("TookitWidget", "DBG->IDA"))
             self.tookit_widgetui.jump_button.setText(_translate("TookitWidget", "跳转"))
             self.tookit_widgetui.mode = 1          
 
@@ -218,10 +248,10 @@ class TookitManger:
 class myplugin_t(idaapi.plugin_t):
     flags = idaapi.PLUGIN_UNL
     comment = "hac425"
+    wanted_hotkey = ""
 
-    help = "Alt-B, shift+v"
+    help = "shift+v"
     wanted_name = "IDA Jump Tookit Plugin"
-    wanted_hotkey = "Alt-B"
 
     def init(self):
         self.manger = TookitManger()
